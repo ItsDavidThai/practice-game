@@ -1,15 +1,17 @@
-import * as express from "express"
-import {join} from 'path'
-const app = express()
+import {app} from './app'
+import * as _io from 'socket.io'
+import {createServer} from 'http'
+const server = createServer(app)
+const io = _io(server)
 
-app.get('/', (_req, res) => {
-  const indexPath = join(__dirname, '..','client','index.html')
-  
-  return res.sendFile(indexPath)
+io.on('connection', (socket) => {
+  console.log('socket started on server')
+
+  socket.on('hello-world', () => {
+    console.log('hello world back')
+  })
 })
 
-
-app.use('./client', express.static(join(__dirname,'../client')))
-app.listen(9000, ()=> {
-  console.log('server is listening on port 9000')
+server.listen(3000, ()=> {
+  console.log('server is listening on port 3000')
 })
