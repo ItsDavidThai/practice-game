@@ -3,11 +3,25 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.1/socket.io.js"></script>
   </head>
   <body>
+    <canvas height="500px" width="500px" id='ctx' style="border: solid 1px"></canvas>
     <div>hello world</div>
     <script>
       var socket = io()
-      
-      socket.emit('hello-world')
+      const ctx = document.getElementById('ctx').getContext('2d')
+      ctx.font = '30px Arial'
+    
+      socket.on('players', (players) => {    
+        ctx.clearRect(0,0,500,500)
+        players.forEach(player => {
+          const {x,y,id, number} = player
+          
+          ctx.fillText(number, x,y)
+        })
+      })
+      window.onbeforeunload((event) => {
+        socket.emit('disconnect')
+      })
+      socket.emit('hello-world', {'any':'this is data'})
     </script>
   </body>
 </html>
