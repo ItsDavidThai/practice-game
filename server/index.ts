@@ -1,77 +1,131 @@
-import {app} from './app'
+import { createServer } from 'http'
+
 import * as _io from 'socket.io'
-import {createServer} from 'http'
-import {v4 as uuid} from 'uuid'
+import { v4 as uuid } from 'uuid'
+
+import { app } from './app'
 
 const server = createServer(app)
 const io = _io(server)
-interface PlayerSocket extends _io.Socket {
+interface GameState {
+  players: Record<string, Player>
+  bullets: Record<string, Bullet>
+}
+interface BoardPosition {
   x: number
   y: number
-  spdX: number
-  spdY: number
-  id: string
-  number: number
+  xSpd: number
+  ySpd: number
 }
 
-const socketList:Record<string, PlayerSocket> = {}
+type Bullet = BoardPosition
+type Player = BoardPosition
+const activeSockets: Record<string, _io.Socket> = {}
+const gameState: GameState = {
+  players: {},
+  bullets: {},
+}
+function Player(x: number, y: number): Player {
+  return { x, y, xSpd: 10, ySpd: 5 }
+}
 
-io.on('connection', (socket: PlayerSocket) => {
+io.on('connection', (socket: _io.Socket) => {
   const id = uuid()
-  console.log(`socket ${id} connected`)
-  socket.x = Math.random() * 500
-  socket.y = Math.random() * 500
-  socket.spdY = 5
-  socket.spdX = 10
   socket.id = id
-  socket.number = Math.floor(Math.random() * 100)
-  socketList[id] = socket
+
+  activeSockets[id] = socket
+  gameState.players[id] = Player(0, 0)
+  console.log(`socket ${id} connected`)
+  socket.emit('connected', { id: id })
   socket.on('disconnect', () => {
     console.log(`socket ${id} disconnected`)
-    delete socketList[id]
+    delete activeSockets[id]
+  })
+
+  socket.on('playerMoved', ({ id, direction }) => {
+    console.log('player pre move', gameState.players[id])
+    const player = gameState.players[id]
+
+    gameState.players[id] = {
+      ...player,
+      ...updatePlayerPosition(player, direction),
+    }
+    console.log('player post move', gameState.players[id])
   })
 })
 
-interface PlayerPosition {
-  x: number
-  y: number
-  spdX: number
-  spdY: number
-} 
-function updatePosition(currentPosition: PlayerPosition): PlayerPosition {
-  let {x,y, spdX, spdY} = currentPosition
-  
-  if(x >= 500){
-    spdX = -30
-    // spdY = - 5
-  } 
-  if(x <= 0){
-    spdX = 30
+function updateBulletPosition(currentPosition: BoardPosition): BoardPosition {
+  const { x, y } = currentPosition
+  let { xSpd, ySpd } = currentPosition
+
+  if (x >= 500) {
+    xSpd = -30
+  } else if (x <= 0) {
+    xSpd = 30
   }
-  if(y >= 500){
-    spdY = -5
+  if (y >= 500) {
+    ySpd = -5
+  } else if (y <= 0) {
+    ySpd = 5
   }
-  if(y <= 0){
-    spdY = 5
+  return { x: x + xSpd, y: y + ySpd, xSpd: xSpd, ySpd: ySpd }
+}
+function updatePlayerPosition(
+  currentPosition: BoardPosition,
+  direction: string
+): BoardPosition {
+  const { x, y } = currentPosition
+  const { xSpd, ySpd } = currentPosition
+  let moveX = x
+  let moveY = y
+  const movements = {
+    up: y - ySpd,
+    down: y + ySpd,
+    left: x - xSpd,
+    right: x + xSpd,
   }
-  return {x: x+spdX, y: y+spdY, spdX, spdY }
+  console.log(direction, x, y, xSpd, ySpd)
+  if (direction === 'left' || direction === 'right') {
+    if (x > 0 && x < 500) {
+      moveX = movements[direction]
+    } else if (x <= 0) {
+      moveX = movements['right']
+    } else if (x >= 500) {
+      moveX = movements['left']
+    }
+  } else if (direction === 'up' || direction === 'down') {
+    if (y > 0 && y < 500) {
+      moveY = movements[direction]
+    } else if (y <= 0) {
+      moveY = movements['right']
+    } else if (y >= 500) {
+      moveY = movements['left']
+    }
+  }
+  return { x: moveX, y: moveY, xSpd: xSpd, ySpd: ySpd }
+}
+gameState.bullets = {
+  test: {
+    x: 0,
+    y: 0,
+    xSpd: 30,
+    ySpd: 5,
+  },
 }
 setInterval(() => {
-  let pack = []
-  for(let key in socketList){
-    const socket = socketList[key]
-    const currentPlayerPosition:PlayerPosition = {x: socket.x, y: socket.y, spdX: socket.spdX, spdY: socket.spdY}
-    const newPlayerPosition:PlayerPosition = updatePosition(currentPlayerPosition)
-    socketList[key] = Object.assign(socket, newPlayerPosition)
-    
-    pack.push({id: socket.id, number: socket.number,x:socket.x, y:socket.y})
-  }
-  for(let key in socketList){
-    const socket = socketList[key]
-    socket.emit('players', pack)
-  }
-}, 1000/25)
+  const { bullets } = gameState
 
-server.listen(3000, ()=> {
+  for (const key in bullets) {
+    const bullet = bullets[key]
+    bullets[key] = { ...bullet, ...updateBulletPosition(bullet) }
+  }
+
+  for (const key in activeSockets) {
+    const socket = activeSockets[key]
+    socket.emit('game-state-update', gameState)
+  }
+}, 1000 / 25)
+
+server.listen(3000, () => {
   console.log('server is listening on port 3000')
 })

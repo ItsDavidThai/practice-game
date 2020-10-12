@@ -7,10 +7,12 @@
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "project": "tsconfig.json",
-    "sourceType": "module"
+    "sourceType": "module",
+    "extraFileExtensions":["html"]
   },
   "plugins": [
     "@typescript-eslint",
+    "eslint-plugin-html",
     "prettier",
     "import"
   ],
@@ -34,7 +36,7 @@
         "singleQuote": true,
         "semi": false,
         "tabWidth": 2,
-        "printWidth": 100
+        "printWidth": 80
       }
     ],
     "import/order": [

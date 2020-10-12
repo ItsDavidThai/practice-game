@@ -9,19 +9,56 @@
       var socket = io()
       const ctx = document.getElementById('ctx').getContext('2d')
       ctx.font = '30px Arial'
-    
-      socket.on('players', (players) => {    
-        ctx.clearRect(0,0,500,500)
-        players.forEach(player => {
-          const {x,y,id, number} = player
-          
-          ctx.fillText(number, x,y)
+      
+      socket.on('connected', ({ id }) => {
+        console.log('connected', id)
+        handleKeyPress(id)
+      })
+      socket.on('game-state-update', ({ bullets, players }) => {
+        ctx.clearRect(0, 0, 500, 500)
+      
+        Object.values(bullets).forEach((bullet) => {
+          const { x, y, id } = bullet
+      
+          ctx.fillText('o', x, y)
+        })
+      
+        Object.values(players).forEach((player) => {
+          // console.log("players", players)
+      
+          const { x, y, id } = player
+      
+          ctx.fillText('P', x, y)
         })
       })
-      window.onbeforeunload((event) => {
+      document.onbeforeunload = (ev) => {
         socket.emit('disconnect')
-      })
-      socket.emit('hello-world', {'any':'this is data'})
+      }
+      function handleKeyPress(id) {
+        document.onkeydown = (ev) => {
+          console.log(ev)
+          console.log(id)
+          switch (ev.keyCode) {
+            case 37: {
+              console.log('these ran')
+              socket.emit('playerMoved', { id, direction: 'left' })
+              break
+            }
+            case 38: {
+              socket.emit('playerMoved', { id, direction: 'up' })
+              break
+            }
+            case 39: {
+              socket.emit('playerMoved', { id, direction: 'right' })
+              break
+            }
+            case 40: {
+              socket.emit('playerMoved', { id, direction: 'down' })
+              break
+            }
+          }
+        }
+      }
     </script>
   </body>
 </html>
